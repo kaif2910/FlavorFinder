@@ -14,11 +14,15 @@ import { map, Observable } from 'rxjs';
     <div class="app-shell">
       <nav>
         <h1>FlavorFinder</h1>
+        <div class="search-box">
+          <input type="text" [(ngModel)]="searchQuery" placeholder="Search recipes...">
+        </div>
         <div class="filters">
           <button (click)="category = 'all'" [class.active]="category === 'all'">All</button>
           <button (click)="category = 'Breakfast'" [class.active]="category === 'Breakfast'">Breakfast</button>
           <button (click)="category = 'Lunch'" [class.active]="category === 'Lunch'">Lunch</button>
           <button (click)="category = 'Dinner'" [class.active]="category === 'Dinner'">Dinner</button>
+          <button (click)="category = 'Dessert'" [class.active]="category === 'Dessert'">Dessert</button>
         </div>
       </nav>
 
@@ -27,9 +31,12 @@ import { map, Observable } from 'rxjs';
           <app-recipe-card 
             *ngFor="let recipe of filteredRecipes$ | async" 
             [recipe]="recipe"
-            (onFavorite)="recipeService.toggleFavorite($event)"
+            (onFavorite)="toggleFavorite($event)"
             (onView)="selectedRecipe = $event">
           </app-recipe-card>
+        </div>
+        <div *ngIf="(filteredRecipes$ | async)?.length === 0" class="no-results">
+          No recipes found matching your search.
         </div>
 
         <aside *ngIf="selectedRecipe" class="modal-overlay" (click)="selectedRecipe = null">
@@ -73,20 +80,42 @@ import { map, Observable } from 'rxjs';
     .modal-content img { width: 100%; height: 300px; object-fit: cover; }
     .details { padding: 2rem; }
     .close-btn { position: absolute; top: 15px; right: 15px; font-size: 2rem; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; }
+    .search-box input { padding: 0.6rem 1.2rem; border-radius: 25px; border: 1px solid #ddd; width: 300px; outline: none; }
+    .search-box input:focus { border-color: #ff4757; }
+    .no-results { text-align: center; padding: 3rem; color: #747d8c; font-size: 1.2rem; grid-column: 1 / -1; }
     .notification { position: fixed; bottom: 20px; right: 20px; background: #2ed573; color: white; padding: 1rem 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); animation: slideIn 0.3s ease-out; }
-    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
   `]
 })
 export class RecipeListComponent {
   category = 'all';
+  searchQuery = '';
   selectedRecipe: Recipe | null = null;
   showToast = false;
 
   constructor(public recipeService: RecipeService) {}
 
+  toggleFavorite(id: number) {
+    this.recipeService.toggleFavorite(id);
+    this.showToast = true;
+    setTimeout(() => this.showToast = false, 3000);
+  }
+
   get filteredRecipes$(): Observable<Recipe[]> {
     return this.recipeService.recipes$.pipe(
-      map((recipes: Recipe[]) => this.category === 'all' ? recipes : recipes.filter((r: Recipe) => r.category === this.category))
+      map((recipes: Recipe[]) => {
+        let filtered = recipes;
+        if (this.category !== 'all') {
+          filtered = filtered.filter(r => r.category === this.category);
+        }
+        if (this.searchQuery) {
+          const query = this.searchQuery.toLowerCase();
+          filtered = filtered.filter(r => 
+            r.title.toLowerCase().includes(query) || 
+            r.ingredients.some(i => i.name.toLowerCase().includes(query))
+          );
+        }
+        return filtered;
+      })
     );
   }
 }
